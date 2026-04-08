@@ -5,8 +5,8 @@
  * Útil para entender el flujo completo sin nada extra.
  */
 
-import { createAuthClient } from "@boolean/api-auth";
-import { UnauthorizedError, NotFoundError } from "@boolean/http";
+import { createAuthClient } from "@boolean-systems-packages/api-auth";
+import { UnauthorizedError, NotFoundError } from "@boolean-systems-packages/http";
 
 // ─────────────────────────────────────────────
 // 1. Crear el cliente

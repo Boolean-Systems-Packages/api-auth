@@ -1,7 +1,7 @@
 {
-  "name": "@boolean/api-auth",
+  "name": "@boolean-systems-packages/api-auth",
   "version": "0.1.0",
-  "description": "SDK del microservicio de autenticación Boolean. Construido sobre @boolean/http.",
+  "description": "SDK del microservicio de autenticación Boolean. Construido sobre @boolean-systems-packages/http.",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -30,9 +30,12 @@
   ],
   "author": "Boolean Systems",
   "license": "UNLICENSED",
-  "private": true,
+  "private": false,
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "dependencies": {
-    "@boolean/http": "workspace:*"
+    "@boolean-systems-packages/http": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

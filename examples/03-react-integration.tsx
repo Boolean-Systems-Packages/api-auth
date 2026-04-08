@@ -1,12 +1,12 @@
 /**
  * Ejemplo 3: Uso en React
  *
- * Cómo integrar @boolean/api-auth en una app React.
+ * Cómo integrar @boolean-systems-packages/api-auth en una app React.
  * Patron: instancia global del cliente + hook para consumirlo.
  */
 
-import { createAuthClient } from "@boolean/api-auth";
-import type { User, Session } from "@boolean/api-auth";
+import { createAuthClient } from "@boolean-systems-packages/api-auth";
+import type { User, Session } from "@boolean-systems-packages/api-auth";
 import {
   createContext,
   useContext,
@@ -14,7 +14,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { UnauthorizedError } from "@boolean/http";
+import { UnauthorizedError } from "@boolean-systems-packages/http";
 
 // ─────────────────────────────────────────────
 // 1. Instancia global del cliente (un solo lugar)

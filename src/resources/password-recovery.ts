@@ -1,4 +1,4 @@
-import type { BooleanHttpClient, HttpResponse } from "@boolean/http";
+import type { BooleanHttpClient, HttpResponse } from "@boolean-systems-packages/http";
 import type { ForgotPasswordPayload, ResetPasswordPayload, MessageResponse } from "../types";
 
 /**

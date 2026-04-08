@@ -1,4 +1,4 @@
-import type { GetAuthHeader, BaseClientConfig } from "@boolean/http";
+import type { GetAuthHeader, BaseClientConfig } from "@boolean-systems-packages/http";
 
 /**
  * Información del dispositivo/navegador que se envía como headers

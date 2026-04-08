@@ -1,11 +1,11 @@
 /**
- * @boolean/api-auth
+ * @boolean-systems-packages/api-auth
  *
  * SDK del microservicio de autenticación Boolean.
- * Construido sobre `@boolean/http`.
+ * Construido sobre `@boolean-systems-packages/http`.
  *
  * @example
- * import { createAuthClient } from "@boolean/api-auth";
+ * import { createAuthClient } from "@boolean-systems-packages/api-auth";
  *
  * const auth = createAuthClient({
  *   baseURL: "https://api.boolean.com.ar/auth",

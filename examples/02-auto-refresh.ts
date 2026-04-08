@@ -4,12 +4,12 @@
  * Un patrón muy común: si el accessToken expiró, renovarlo automáticamente
  * antes de que el usuario vea un error.
  *
- * Se implementa con un interceptor de response de @boolean/http.
+ * Se implementa con un interceptor de response de @boolean-systems-packages/http.
  * La lógica de refresh vive en el consumer, no en el SDK.
  */
 
-import { createAuthClient } from "@boolean/api-auth";
-import { UnauthorizedError } from "@boolean/http";
+import { createAuthClient } from "@boolean-systems-packages/api-auth";
+import { UnauthorizedError } from "@boolean-systems-packages/http";
 
 // ─────────────────────────────────────────────
 // Token store (simplificado — en producción usarías un estado global)

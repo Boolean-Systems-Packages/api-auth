@@ -1,4 +1,4 @@
-import { BooleanHttpClient } from "@boolean/http";
+import { BooleanHttpClient } from "@boolean-systems-packages/http";
 import { SessionsResource } from "./resources/sessions";
 import { MeResource } from "./resources/me";
 import { PasswordRecoveryResource } from "./resources/password-recovery";
@@ -7,7 +7,7 @@ import type { AuthClientConfig, DeviceContext, TokenPair } from "./types";
 /**
  * Cliente del microservicio de autenticación Boolean.
  *
- * Usa `@boolean/http` internamente para toda la comunicación HTTP.
+ * Usa `@boolean-systems-packages/http` internamente para toda la comunicación HTTP.
  * Expone los endpoints agrupados por recurso (sessions, me, passwordRecovery).
  *
  * ✅ Configuración explícita — sin defaults silenciosos
@@ -15,7 +15,7 @@ import type { AuthClientConfig, DeviceContext, TokenPair } from "./types";
  * ✅ Tipado completo — cada método retorna el tipo exacto
  *
  * @example
- * import { createAuthClient } from "@boolean/api-auth";
+ * import { createAuthClient } from "@boolean-systems-packages/api-auth";
  *
  * const auth = createAuthClient({
  *   baseURL: "https://portal.boolean.com.ar/api/auth/v3",
@@ -57,7 +57,7 @@ export class AuthClient {
       defaultHeaders: deviceContextToHeaders(config.deviceContext),
 
       // Refresh automático: se llama una sola vez aunque múltiples
-      // requests fallen con 401 simultáneamente (singleton en @boolean/http).
+      // requests fallen con 401 simultáneamente (singleton en @boolean-systems-packages/http).
       onUnauthorized: config.getRefreshToken
         ? async () => {
             const refreshToken = config.getRefreshToken!();

@@ -1,4 +1,4 @@
-import type { BooleanHttpClient, HttpResponse } from "@boolean/http";
+import type { BooleanHttpClient, HttpResponse } from "@boolean-systems-packages/http";
 import type { User, ChangePasswordPayload, MessageResponse } from "../types";
 
 /**
@@ -17,10 +17,10 @@ export class MeResource {
   /**
    * Retorna el perfil del usuario autenticado.
    *
-   * Endpoint: GET /me/
+   * Endpoint: GET /mi-usuario/ (authapi Django; Authorization: Token …)
    */
   get(): Promise<HttpResponse<User>> {
-    return this.http.get<User>("/me/");
+    return this.http.get<User>("/mi-usuario/");
   }
 
   /**

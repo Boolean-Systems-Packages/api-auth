@@ -1,14 +1,14 @@
 /**
- * Ejemplo 4: Cómo construir @boolean/api-inventory
- *            siguiendo el mismo patrón de @boolean/api-auth
+ * Ejemplo 4: Cómo construir @boolean-systems-packages/api-inventory
+ *            siguiendo el mismo patrón de @boolean-systems-packages/api-auth
  *
  * Este ejemplo muestra el "blueprint" para crear cualquier otro
- * paquete @boolean/api-* del ecosistema.
+ * paquete @boolean-systems-packages/api-* del ecosistema.
  *
  * En este caso, un cliente para el servicio de inventario.
  */
 
-import { BooleanHttpClient } from "@boolean/http";
+import { BooleanHttpClient } from "@boolean-systems-packages/http";
 
 // ─────────────────────────────────────────────
 // 1. Tipos de dominio propios del servicio
