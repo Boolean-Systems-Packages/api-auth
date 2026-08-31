@@ -139,8 +139,14 @@ export class InactivityWatcher {
 
     this.warnTimeoutId = setTimeout(() => {
       this.phaseValue = "warning";
-      this.config.onWarning();
+      // Armar el timer de gracia ANTES de llamar a onWarning(): si el
+      // consumidor confirma sincrónicamente desde ahí (confirmActive() es
+      // válido en fase "warning"), confirmActive() debe poder cancelar
+      // este timer. Si lo arma después, un confirmActive() síncrono deja
+      // vivo el timer de gracia del ciclo viejo y termina disparando un
+      // logout igual, pese a la confirmación (feedback de Cacho en #6490).
       this.armGraceTimer();
+      this.config.onWarning();
     }, this.config.warnAfterMs);
   }
 

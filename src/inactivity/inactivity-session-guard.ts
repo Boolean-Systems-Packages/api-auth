@@ -40,6 +40,15 @@ export class InactivitySessionGuard {
   private readonly sessions: SessionsResource;
   private watcher: InactivityWatcher | undefined;
 
+  // Token de generación: se incrementa en cada start() y stop(). Un
+  // logout pendiente de un ciclo anterior (por ejemplo, si se llama
+  // start() o stop() mientras sessions.logout() todavía está en vuelo)
+  // solo puede notificar onSessionExpired si su generación sigue siendo
+  // la vigente -- si no, es una notificación tardía de un ciclo ya
+  // reemplazado/detenido y no debe tocar la sesión nueva (feedback de
+  // Cacho en #6490).
+  private generation = 0;
+
   constructor(sessions: SessionsResource) {
     this.sessions = sessions;
   }
@@ -50,6 +59,7 @@ export class InactivitySessionGuard {
 
   /** Arranca (o reconfigura y reinicia) el watcher de inactividad. */
   start(config: InactivitySessionGuardConfig): void {
+    const generation = ++this.generation;
     this.watcher?.stop();
 
     this.watcher = new InactivityWatcher({
@@ -60,9 +70,16 @@ export class InactivitySessionGuard {
         // No se espera este logout: si la red está caída justo en este
         // momento, igual queremos avisarle al consumidor que la sesión
         // venció por inactividad -- no dejamos que un logout fallido
-        // bloquee esa notificación.
+        // bloquee esa notificación. Decisión de diseño (ver PR #1):
+        // el consumidor siempre debe invalidar la sesión local y
+        // redirigir al login ante esta notificación, nunca reintentar o
+        // conservarla a la espera de un logout remoto exitoso -- una
+        // sesión inactiva no puede quedar potencialmente abierta solo
+        // porque hubo un error de red pasajero en el peor momento.
         void this.sessions.logout().catch(() => undefined).finally(() => {
-          config.onSessionExpired();
+          if (generation === this.generation) {
+            config.onSessionExpired();
+          }
         });
       },
       ...(config.activityEvents !== undefined && { activityEvents: config.activityEvents }),
@@ -74,6 +91,7 @@ export class InactivitySessionGuard {
 
   /** Detiene el watcher (ej: al desmontar la app, o justo después de un logout manual). */
   stop(): void {
+    ++this.generation;
     this.watcher?.stop();
   }
 

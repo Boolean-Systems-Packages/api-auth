@@ -95,6 +95,33 @@ describe("InactivityWatcher", () => {
     expect(onWarning).toHaveBeenCalledTimes(2);
   });
 
+  it("confirmActive() llamado SINCRÓNICAMENTE desde onWarning cancela el cierre igual (feedback Cacho #6490)", () => {
+    // Regresión: armGraceTimer() se llamaba DESPUÉS de onWarning(). Si el
+    // consumidor confirma de forma síncrona desde ahí, confirmActive()
+    // reseteaba la fase a "idle-tracking", pero al volver el callback de
+    // warning igual armaba el timer de gracia del ciclo viejo -- ese timer
+    // terminaba disparando onTimeout pese a la confirmación.
+    const onTimeout = vi.fn();
+    const watcher = new InactivityWatcher({
+      warnAfterMs: 1000,
+      graceMs: 500,
+      onWarning: () => {
+        watcher.confirmActive();
+      },
+      onTimeout,
+      target: undefined,
+    });
+
+    watcher.start();
+    vi.advanceTimersByTime(1000); // dispara onWarning -> confirmActive() síncrono
+    expect(watcher.phase).toBe("idle-tracking");
+
+    // si el bug estuviera presente, esto dispararía onTimeout igual
+    vi.advanceTimersByTime(500);
+    expect(onTimeout).not.toHaveBeenCalled();
+    expect(watcher.phase).toBe("idle-tracking");
+  });
+
   it("confirmActive() no tiene efecto fuera de la fase 'warning'", () => {
     const { watcher } = makeWatcher();
     watcher.start();
