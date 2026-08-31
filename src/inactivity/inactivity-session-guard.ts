@@ -34,7 +34,20 @@ export interface InactivitySessionGuardConfig {
 
   activityEvents?: readonly string[] | undefined;
   target?: EventTarget | undefined;
+
+  /**
+   * Milisegundos máximos que se espera a sessions.logout() antes de
+   * notificar onSessionExpired de todos modos. Sin esto, una request
+   * que queda colgada (conexión estancada, sin error de red ni
+   * timeout del lado del cliente HTTP) nunca dispara el .finally() y
+   * la limpieza local jamás ocurre -- un logout que nunca resuelve NI
+   * rechaza deja al consumidor con la sesión vencida pero sin
+   * notificación (hallazgo de Martín en #6490). Default 5000ms.
+   */
+  logoutTimeoutMs?: number | undefined;
 }
+
+const DEFAULT_LOGOUT_TIMEOUT_MS = 5000;
 
 export class InactivitySessionGuard {
   private readonly sessions: SessionsResource;
@@ -67,16 +80,24 @@ export class InactivitySessionGuard {
       graceMs: config.graceMs,
       onWarning: config.onWarning,
       onTimeout: () => {
-        // No se espera este logout: si la red está caída justo en este
-        // momento, igual queremos avisarle al consumidor que la sesión
-        // venció por inactividad -- no dejamos que un logout fallido
-        // bloquee esa notificación. Decisión de diseño (ver PR #1):
-        // el consumidor siempre debe invalidar la sesión local y
-        // redirigir al login ante esta notificación, nunca reintentar o
+        // No se espera este logout indefinidamente: si la red está
+        // caída, o si la request queda directamente colgada (sin
+        // rechazar, sin resolver -- conexión estancada), igual queremos
+        // avisarle al consumidor que la sesión venció por inactividad.
+        // Decisión de diseño (ver PR #1, confirmada por Martín): el
+        // consumidor siempre debe invalidar la sesión local y redirigir
+        // al login ante esta notificación, nunca reintentar o
         // conservarla a la espera de un logout remoto exitoso -- una
         // sesión inactiva no puede quedar potencialmente abierta solo
-        // porque hubo un error de red pasajero en el peor momento.
-        void this.sessions.logout().catch(() => undefined).finally(() => {
+        // porque hubo un error de red (o un cuelgue) justo en el peor
+        // momento. Por eso el intento de logout corre contra un timeout
+        // propio: lo que pase primero dispara la notificación.
+        const logoutTimeoutMs = config.logoutTimeoutMs ?? DEFAULT_LOGOUT_TIMEOUT_MS;
+        const bounded = Promise.race([
+          this.sessions.logout().catch(() => undefined),
+          new Promise<void>((resolve) => setTimeout(resolve, logoutTimeoutMs)),
+        ]);
+        void bounded.finally(() => {
           if (generation === this.generation) {
             config.onSessionExpired();
           }

@@ -168,6 +168,53 @@ describe("InactivitySessionGuard", () => {
     expect(() => guard.stop()).not.toThrow();
   });
 
+  describe("timeout acotado del logout remoto (feedback Martín #6490)", () => {
+    it("notifica onSessionExpired igual si sessions.logout() nunca resuelve ni rechaza (request colgada)", async () => {
+      const hangingLogout = vi.fn(() => new Promise(() => {})); // nunca se asienta
+      const sessions = { logout: hangingLogout } as unknown as SessionsResource;
+      const onSessionExpired = vi.fn();
+      const guard = new InactivitySessionGuard(sessions);
+
+      guard.start({
+        warnAfterMs: 1000,
+        graceMs: 500,
+        onWarning: vi.fn(),
+        onSessionExpired,
+        logoutTimeoutMs: 2000,
+        target: undefined,
+      });
+
+      vi.advanceTimersByTime(1500); // dispara onTimeout -> logout() colgado para siempre
+      expect(hangingLogout).toHaveBeenCalledTimes(1);
+      expect(onSessionExpired).not.toHaveBeenCalled(); // todavía no venció el timeout del logout
+
+      vi.advanceTimersByTime(2000); // vence logoutTimeoutMs
+      await vi.waitFor(() => expect(onSessionExpired).toHaveBeenCalledTimes(1));
+    });
+
+    it("usa el default de 5000ms si no se pasa logoutTimeoutMs", async () => {
+      const hangingLogout = vi.fn(() => new Promise(() => {}));
+      const sessions = { logout: hangingLogout } as unknown as SessionsResource;
+      const onSessionExpired = vi.fn();
+      const guard = new InactivitySessionGuard(sessions);
+
+      guard.start({
+        warnAfterMs: 1000,
+        graceMs: 500,
+        onWarning: vi.fn(),
+        onSessionExpired,
+        target: undefined,
+      });
+
+      vi.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(4999);
+      expect(onSessionExpired).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
+      await vi.waitFor(() => expect(onSessionExpired).toHaveBeenCalledTimes(1));
+    });
+  });
+
   describe("generación de ciclo (feedback Cacho #6490)", () => {
     // El logout es async: si se llama stop() o start() de nuevo mientras
     // ese logout del ciclo anterior sigue "en vuelo", su notificación
