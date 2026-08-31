@@ -180,6 +180,21 @@ describe("InactivityWatcher", () => {
     expect(() => new InactivityWatcher({ warnAfterMs: 100, graceMs: 0, onWarning: vi.fn(), onTimeout: vi.fn() })).toThrow();
   });
 
+  it("rechaza NaN, Infinity y valores por encima del máximo de setTimeout (feedback Cacho #6490)", () => {
+    const MAX_TIMEOUT_MS = 2_147_483_647;
+    const base = { onWarning: vi.fn(), onTimeout: vi.fn() };
+
+    for (const bad of [NaN, Infinity, -Infinity, MAX_TIMEOUT_MS + 1]) {
+      expect(() => new InactivityWatcher({ warnAfterMs: bad, graceMs: 100, ...base })).toThrow();
+      expect(() => new InactivityWatcher({ warnAfterMs: 100, graceMs: bad, ...base })).toThrow();
+    }
+
+    // el límite exacto sigue siendo válido
+    expect(
+      () => new InactivityWatcher({ warnAfterMs: MAX_TIMEOUT_MS, graceMs: 100, ...base })
+    ).not.toThrow();
+  });
+
   it("createInactivityWatcher() es equivalente al constructor (misma convención que createAuthClient)", () => {
     const onWarning = vi.fn();
     const watcher = createInactivityWatcher({

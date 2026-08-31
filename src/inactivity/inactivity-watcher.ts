@@ -70,6 +70,9 @@ const DEFAULT_ACTIVITY_EVENTS = [
   "scroll",
 ] as const;
 
+/** Límite real de setTimeout/setInterval (entero de 32 bits con signo). */
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
 export class InactivityWatcher {
   private readonly config: InactivityWatcherConfig;
   private readonly target: EventTarget | undefined;
@@ -81,11 +84,25 @@ export class InactivityWatcher {
   private graceTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
   constructor(config: InactivityWatcherConfig) {
-    if (config.warnAfterMs <= 0) {
-      throw new Error("warnAfterMs debe ser mayor que 0");
+    // Number.isFinite() explícito -- un "<= 0" solo no rechaza NaN ni
+    // Infinity. Un NaN llega a setTimeout como 0 (dispara casi
+    // inmediato); MAX_TIMEOUT_MS es el límite real de setTimeout (32
+    // bits con signo) -- pasado eso, algunos runtimes lo recortan
+    // silenciosamente en vez de esperar el valor pedido (feedback de
+    // Cacho en #6490).
+    if (
+      !Number.isFinite(config.warnAfterMs) ||
+      config.warnAfterMs <= 0 ||
+      config.warnAfterMs > MAX_TIMEOUT_MS
+    ) {
+      throw new Error(`warnAfterMs debe ser un número finito entre 1 y ${MAX_TIMEOUT_MS}`);
     }
-    if (config.graceMs <= 0) {
-      throw new Error("graceMs debe ser mayor que 0");
+    if (
+      !Number.isFinite(config.graceMs) ||
+      config.graceMs <= 0 ||
+      config.graceMs > MAX_TIMEOUT_MS
+    ) {
+      throw new Error(`graceMs debe ser un número finito entre 1 y ${MAX_TIMEOUT_MS}`);
     }
 
     this.config = config;
