@@ -35,7 +35,7 @@
     "registry": "https://npm.pkg.github.com"
   },
   "dependencies": {
-    "@boolean-systems-packages/http": "workspace:*"
+    "@boolean-systems-packages/http": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
