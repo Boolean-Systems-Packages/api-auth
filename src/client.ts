@@ -2,6 +2,7 @@ import { BooleanHttpClient } from "@boolean-systems-packages/http";
 import { SessionsResource } from "./resources/sessions";
 import { MeResource } from "./resources/me";
 import { PasswordRecoveryResource } from "./resources/password-recovery";
+import { InactivitySessionGuard } from "./inactivity/inactivity-session-guard";
 import type { AuthClientConfig, DeviceContext, TokenPair } from "./types";
 
 /**
@@ -47,6 +48,21 @@ export class AuthClient {
   /** Endpoints de recuperación de contraseña */
   public readonly passwordRecovery: PasswordRecoveryResource;
 
+  /**
+   * Detección de inactividad con aviso previo (CAJA-6490). Al vencer el
+   * tiempo de gracia sin confirmación, cierra la sesión vía
+   * `sessions.logout()` y notifica al consumidor.
+   *
+   * @example
+   * auth.inactivity.start({
+   *   warnAfterMs: 10 * 60_000,
+   *   graceMs: 60_000,
+   *   onWarning: () => showInactivityModal(),
+   *   onSessionExpired: () => redirectToLogin(),
+   * });
+   */
+  public readonly inactivity: InactivitySessionGuard;
+
   private readonly http: BooleanHttpClient;
 
   constructor(config: AuthClientConfig) {
@@ -84,6 +100,7 @@ export class AuthClient {
     this.sessions = new SessionsResource(this.http);
     this.me = new MeResource(this.http);
     this.passwordRecovery = new PasswordRecoveryResource(this.http);
+    this.inactivity = new InactivitySessionGuard(this.sessions);
   }
 
   /**
