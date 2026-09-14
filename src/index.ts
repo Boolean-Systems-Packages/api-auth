@@ -22,6 +22,7 @@ export { AuthClient, createAuthClient } from "./client";
 export { SessionsResource } from "./resources/sessions";
 export { MeResource } from "./resources/me";
 export { PasswordRecoveryResource } from "./resources/password-recovery";
+export { VerifyCredentialsResource } from "./resources/verify-credentials";
 
 // Detección de inactividad (CAJA-6490)
 export { InactivityWatcher, createInactivityWatcher } from "./inactivity/inactivity-watcher";
@@ -41,6 +42,14 @@ export type {
   ResetPasswordPayload,
   MessageResponse,
 } from "./types";
+
+export type {
+  VerifyCredentialsPayload,
+  VerifyCredentialsResponse,
+  RequestAdminAuthorizationInput,
+  RequestAdminAuthorizationResult,
+  AdminAuthPromptLabels,
+} from "./admin-auth";
 
 export type {
   InactivityPhase,

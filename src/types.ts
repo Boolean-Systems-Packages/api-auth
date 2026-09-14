@@ -157,3 +157,11 @@ export interface ResetPasswordPayload {
 export interface MessageResponse {
   message: string;
 }
+
+export type {
+  VerifyCredentialsPayload,
+  VerifyCredentialsResponse,
+  RequestAdminAuthorizationInput,
+  RequestAdminAuthorizationResult,
+  AdminAuthPromptLabels,
+} from "./admin-auth";

@@ -82,6 +82,108 @@ await auth.sessions.logout();
 | `forgot(payload)` | `POST /password-recovery/forgot` | ❌ | Enviar email de recuperación |
 | `reset(payload)` | `POST /password-recovery/reset` | ❌ | Resetear contraseña con token |
 
+### `auth.verifyCredentials`
+
+Verifica usuario + clave de un admin del tenant **sin crear sesión**. El tenant va en `X-Company-Id`, nunca en el body.
+
+| Método | Endpoint | Auth | Descripción |
+|---|---|---|---|
+| `verify(payload)` | `POST /service/verify-credentials/` | ✅ (M2M) | Respuesta cruda `{ valid, user_id, is_admin }` |
+| `requestAdminAuthorization(payload)` | igual | ✅ (M2M) | Mapea a `{ authorized, userId, isAdmin }` |
+
+```ts
+const result = await auth.verifyCredentials.requestAdminAuthorization({
+  username,
+  password,
+  action: "emit_nc",
+  companyId: tenantId,
+  actorUserId: String(currentUserId),
+});
+```
+
+### Modal React (`@boolean-systems-packages/api-auth/react`)
+
+El usuario logueado sigue en su sesión. Un admin pone usuario y clave en el
+mismo terminal; se desbloquea **esa** acción. No se abre una sesión para el admin.
+
+El browser **no llama a Auth**. El modal junta las credenciales y el micro las
+manda a **su** backend. Ese backend llama a `POST /v3/service/verify-credentials/`
+con identidad M2M (`AUTH_OAUTH_*` o `X-Service-Key`).
+
+#### 1. Candado en el backend del micro
+
+- Preview / GET libre.
+- En el POST que ejecuta la acción: si el flag está on y el JWT de la sesión
+  **no** es admin, exigir `admin_username` + `admin_password`.
+- Si faltan: **400** `ADMIN_AUTH_REQUIRED` (no 403: varios axios tratan 403 como refresh).
+- Si no valen: **400** `ADMIN_AUTH_INVALID`.
+- Si el usuario de la sesión ya es admin del tenant, no pedir nada.
+
+#### 2. Montar el modal
+
+```tsx
+import { AdminAuthPrompt } from "@boolean-systems-packages/api-auth/react";
+import type { RequestAdminAuthorizationInput } from "@boolean-systems-packages/api-auth/react";
+
+const [open, setOpen] = useState(false);
+
+async function handleEmit() {
+  if (requireAdminAuth && !sessionUserIsAdmin) {
+    setOpen(true);
+    return;
+  }
+  await confirmAction();
+}
+
+async function authorize({ username, password }: RequestAdminAuthorizationInput) {
+  try {
+    await confirmAction({
+      admin_username: username,
+      admin_password: password,
+    });
+    return { authorized: true };
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "ADMIN_AUTH_INVALID" || code === "ADMIN_AUTH_REQUIRED") {
+      return { authorized: false }; // el modal muestra el error y no cierra
+    }
+    throw error;
+  }
+}
+
+<AdminAuthPrompt
+  open={open}
+  action="emit_nc"
+  authorize={authorize}
+  onAuthorized={() => {
+    setOpen(false);
+    // la acción ya se ejecutó adentro de authorize
+  }}
+  onCancel={() => setOpen(false)}
+/>
+```
+
+Ejemplo completo: [`05-admin-auth-prompt.tsx`](./examples/05-admin-auth-prompt.tsx).
+
+#### Props
+
+| Prop | Obligatorio | Descripción |
+|---|---|---|
+| `open` | sí | Si es `false`, no renderiza nada y limpia el form. |
+| `action` | sí | Slug de la acción (`emit_nc`, etc.). Viaja en el body hacia Auth. |
+| `authorize` | recomendado | Recibe `{ username, password, action }` y debe devolver `{ authorized }`. |
+| `onAuthorized` | sí | Se llama solo si `authorize` resolvió `authorized: true`. |
+| `onCancel` | sí | Cerrar sin autorizar. |
+| `labels` | no | Sobrescribe textos (título, campos, error). |
+| `client` + `companyId` | no | Alternativa: el modal llama a Auth vía `createAuthClient`. Solo si el front tiene M2M; en micros Boolean usar `authorize`. |
+| `actorUserId` | no | Auditoría (`X-Actor-User-Id`) cuando se usa `client`. |
+
+#### Qué no hacer
+
+- No pegarle a Auth desde el browser con el JWT del usuario.
+- No tratar 403 del candado como “hay que pedir admin”: usar 400 + código.
+- No mostrar el modal si el logueado ya es admin.
+
 ---
 
 ## Configuración
@@ -110,6 +212,7 @@ createAuthClient({
 | [`02-auto-refresh.ts`](./examples/02-auto-refresh.ts) | Renovación silenciosa de tokens con interceptors |
 | [`03-react-integration.tsx`](./examples/03-react-integration.tsx) | AuthProvider, useAuth hook, LoginForm |
 | [`04-building-other-sdks.ts`](./examples/04-building-other-sdks.ts) | Cómo crear `@boolean/api-inventory` siguiendo el mismo patrón |
+| [`05-admin-auth-prompt.tsx`](./examples/05-admin-auth-prompt.tsx) | Modal de autorización de admin (`authorize` → backend del micro) |
 
 ---
 
@@ -160,7 +263,10 @@ console.log(auth.httpClient.debugInfo);
        ↑
 @boolean/api-auth       ← Este paquete
 ├── AuthClient
-│   ├── sessions        → SessionsResource  (login, register, logout, refresh)
-│   ├── me              → MeResource        (perfil, changePassword)
-│   └── passwordRecovery → PasswordRecoveryResource (forgot, reset)
+│   ├── sessions           → SessionsResource  (login, register, logout, refresh)
+│   ├── me                 → MeResource        (perfil, changePassword)
+│   ├── passwordRecovery   → PasswordRecoveryResource (forgot, reset)
+│   └── verifyCredentials  → VerifyCredentialsResource (admin sin sesión)
+└── ./react
+    └── AdminAuthPrompt
 ```
