@@ -2,6 +2,7 @@ import { BooleanHttpClient } from "@boolean-systems-packages/http";
 import { SessionsResource } from "./resources/sessions";
 import { MeResource } from "./resources/me";
 import { PasswordRecoveryResource } from "./resources/password-recovery";
+import { VerifyCredentialsResource } from "./resources/verify-credentials";
 import { InactivitySessionGuard } from "./inactivity/inactivity-session-guard";
 import type { AuthClientConfig, DeviceContext, TokenPair } from "./types";
 
@@ -47,6 +48,9 @@ export class AuthClient {
 
   /** Endpoints de recuperación de contraseña */
   public readonly passwordRecovery: PasswordRecoveryResource;
+
+  /** Verifica clave de un admin sin abrir sesión (acciones sensibles) */
+  public readonly verifyCredentials: VerifyCredentialsResource;
 
   /**
    * Detección de inactividad con aviso previo (CAJA-6490). Al vencer el
@@ -100,6 +104,7 @@ export class AuthClient {
     this.sessions = new SessionsResource(this.http);
     this.me = new MeResource(this.http);
     this.passwordRecovery = new PasswordRecoveryResource(this.http);
+    this.verifyCredentials = new VerifyCredentialsResource(this.http);
     this.inactivity = new InactivitySessionGuard(this.sessions);
   }
 
