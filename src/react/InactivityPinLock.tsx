@@ -130,6 +130,7 @@ export function InactivityPinLock({
   const [sessionExpired, setSessionExpired] = useState(false);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const verificationGeneration = useRef(0);
   const callbackRefs = useRef({ onBeforeClose, onLogout, onSessionExpired });
 
   callbackRefs.current = { onBeforeClose, onLogout, onSessionExpired };
@@ -139,6 +140,7 @@ export function InactivityPinLock({
   }, [hasPin, identityKey]);
 
   useEffect(() => {
+    verificationGeneration.current += 1;
     setLocked(false);
     setPin("");
     setPinBlocked(false);
@@ -181,6 +183,7 @@ export function InactivityPinLock({
           }
         : {}),
       onSessionExpired: () => {
+        verificationGeneration.current += 1;
         setSessionExpired(true);
         setLocked(true);
         callbackRefs.current.onSessionExpired?.();
@@ -276,10 +279,12 @@ export function InactivityPinLock({
 
   const verifyPin = useCallback(async () => {
     if (!pinAvailable || pinBlocked || sessionExpired || busy) return;
+    const requestGeneration = verificationGeneration.current;
     setBusy(true);
     setMessage(null);
     try {
       const response = await client.pin.verify({ pin });
+      if (requestGeneration !== verificationGeneration.current) return;
       const result = response.data;
       if (result.valid) {
         setPin("");
@@ -298,6 +303,7 @@ export function InactivityPinLock({
         setMessage(mergedLabels.invalidPin(result.remainingAttempts));
       }
     } catch (error) {
+      if (requestGeneration !== verificationGeneration.current) return;
       if (getHttpStatus(error) === 401) {
         setSessionExpired(true);
         setMessage(mergedLabels.sessionExpired);
@@ -305,7 +311,7 @@ export function InactivityPinLock({
         setMessage(mergedLabels.verificationError);
       }
     } finally {
-      setBusy(false);
+      if (requestGeneration === verificationGeneration.current) setBusy(false);
     }
   }, [busy, client, mergedLabels, pin, pinAvailable, pinBlocked, sessionExpired]);
 

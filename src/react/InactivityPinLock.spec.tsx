@@ -142,4 +142,52 @@ describe("InactivityPinLock", () => {
     expect(inactivity.start).toHaveBeenCalledTimes(2);
     expect(getConfig()!.graceMs).toBeUndefined();
   });
+
+  it("ignora una verificacion pendiente despues de que la sesion vence", async () => {
+    const { client, pin, inactivity, getConfig } = makeClient();
+    let resolveVerification: ((value: { data: { valid: boolean } }) => void) | undefined;
+    pin.verify.mockReturnValue(
+      new Promise<{ data: { valid: boolean } }>((resolve) => {
+        resolveVerification = resolve;
+      })
+    );
+    render(<InactivityPinLock client={client} {...baseProps} />);
+    getConfig()!.onWarning();
+
+    fireEvent.change(await screen.findByLabelText("PIN"), { target: { value: "5937" } });
+    fireEvent.click(screen.getByRole("button", { name: "Destrabar" }));
+    await waitFor(() => expect(pin.verify).toHaveBeenCalledTimes(1));
+
+    getConfig()!.onSessionExpired();
+    resolveVerification!({ data: { valid: true } });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    expect(screen.queryByLabelText("PIN")).toBeNull();
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect(inactivity.confirmActive).not.toHaveBeenCalled();
+  });
+
+  it("ignora una verificacion pendiente al cambiar de identidad", async () => {
+    const { client, pin, inactivity, getConfig } = makeClient();
+    let resolveVerification: ((value: { data: { valid: boolean } }) => void) | undefined;
+    pin.verify.mockReturnValue(
+      new Promise<{ data: { valid: boolean } }>((resolve) => {
+        resolveVerification = resolve;
+      })
+    );
+    const view = render(<InactivityPinLock client={client} {...baseProps} />);
+    getConfig()!.onWarning();
+
+    fireEvent.change(await screen.findByLabelText("PIN"), { target: { value: "5937" } });
+    fireEvent.click(screen.getByRole("button", { name: "Destrabar" }));
+    await waitFor(() => expect(pin.verify).toHaveBeenCalledTimes(1));
+
+    view.rerender(
+      <InactivityPinLock client={client} {...baseProps} identityKey="user-2" />
+    );
+    resolveVerification!({ data: { valid: true } });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(inactivity.confirmActive).not.toHaveBeenCalled();
+  });
 });
