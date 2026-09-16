@@ -25,6 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -46,23 +49,114 @@ jobs:
           npm test
           npm run build
 
-      - name: Bump version
+      - name: Commit and push release
         id: version
+        env:
+          BUMP: ${{ github.event.inputs.bump || 'patch' }}
+          BOOLEAN_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Un reintento del mismo run, o un push del commit de release,
+          # debe reutilizar la versión ya persistida.
+          REUSE_RELEASE: ${{ github.run_attempt > 1 || github.event_name == 'push' }}
         run: |
-          BUMP="${{ github.event.inputs.bump || 'patch' }}"
-          npm version "$BUMP" --no-git-tag-version
-          echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          max_attempts=3
+          release_version=""
+          release_tag=""
+          release_ready=false
+          validated_sha="$(git rev-parse HEAD)"
+
+          validate_if_main_changed() {
+            local current_sha
+            current_sha="$(git rev-parse HEAD)"
+            if [[ "$current_sha" == "$validated_sha" ]]; then
+              return
+            fi
+
+            echo "main cambió durante el release; se ejecuta nuevamente la validación"
+            npm install
+            npm run type-check
+            npm test
+            npm run build
+            validated_sha="$current_sha"
+          }
+
+          rebase_main() {
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "::error::No se pudo rebasar el release sobre origin/main"
+              exit 1
+            fi
+          }
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            echo "Preparando release (intento $attempt/$max_attempts)"
+            git fetch origin main --tags
+            rebase_main
+            validate_if_main_changed
+
+            if [[ -z "$release_version" ]]; then
+              current_version="$(node -p "require('./package.json').version")"
+              candidate_tag="v$current_version"
+              tag_commit="$(git rev-parse "${candidate_tag}^{commit}" 2>/dev/null || true)"
+              head_commit="$(git rev-parse HEAD)"
+              subject="$(git log -1 --format=%s)"
+
+              if [[ "$REUSE_RELEASE" == "true" ]] \
+                && [[ "$subject" == "chore: release $candidate_tag" ]] \
+                && [[ -n "$tag_commit" ]] \
+                && [[ "$tag_commit" == "$head_commit" ]]; then
+                release_version="$current_version"
+                release_tag="$candidate_tag"
+                release_ready=true
+                echo "Reutilizando release persistido $release_tag"
+                break
+              fi
+
+              npm version "$BUMP" --no-git-tag-version
+              release_version="$(node -p "require('./package.json').version")"
+              release_tag="v$release_version"
+              git add package.json package-lock.json
+              git commit -m "chore: release $release_tag"
+              git tag "$release_tag"
+              validated_sha="$(git rev-parse HEAD)"
+            else
+              # Si el push anterior fue rechazado, el commit puede haber sido
+              # rebasado sobre un main nuevo. El tag local debe apuntar al
+              # commit actualizado antes de reintentar.
+              git tag -f "$release_tag"
+            fi
+
+            if git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$release_tag"; then
+              release_ready=true
+              break
+            fi
+
+            echo "El push fue rechazado; se sincroniza main y se reintenta"
+          done
+
+          if [[ "$release_ready" != "true" ]]; then
+            echo "::error::No se pudo persistir el release después de $max_attempts intentos"
+            exit 1
+          fi
+
+          echo "version=$release_version" >> "$GITHUB_OUTPUT"
 
       - name: Publish package
         env:
           BOOLEAN_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm publish
-
-      - name: Commit version and tag
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json
-          git commit -m "chore: release v${{ steps.version.outputs.version }}"
-          git tag "v${{ steps.version.outputs.version }}"
-          git push --follow-tags origin HEAD:main
+          set -euo pipefail
+          package_name="$(node -p "require('./package.json').name")"
+          version="${{ steps.version.outputs.version }}"
+
+          # Permite reanudar un workflow después de que npm haya publicado
+          # correctamente pero el job haya terminado con un error transitorio.
+          if npm view "${package_name}@${version}" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "${package_name}@${version} ya está publicado; no se duplica"
+          else
+            npm publish
+          fi
