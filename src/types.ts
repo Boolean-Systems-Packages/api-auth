@@ -102,6 +102,7 @@ export interface User {
   roles: string[];
   createdAt: string;
   updatedAt: string;
+  has_pin?: boolean;
 }
 
 export interface TokenPair {

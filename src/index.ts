@@ -22,6 +22,7 @@ export { AuthClient, createAuthClient } from "./client";
 export { SessionsResource } from "./resources/sessions";
 export { MeResource } from "./resources/me";
 export { PasswordRecoveryResource } from "./resources/password-recovery";
+export { PinResource } from "./resources/pin";
 
 // Detección de inactividad (CAJA-6490)
 export { InactivityWatcher, createInactivityWatcher } from "./inactivity/inactivity-watcher";
@@ -48,3 +49,10 @@ export type {
 } from "./inactivity/inactivity-watcher";
 
 export type { InactivitySessionGuardConfig } from "./inactivity/inactivity-session-guard";
+
+export type {
+  PinSetPayload,
+  PinVerifyPayload,
+  PinVerificationReason,
+  PinVerificationResult,
+} from "./resources/pin";
