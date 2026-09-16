@@ -190,4 +190,27 @@ describe("InactivityPinLock", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(inactivity.confirmActive).not.toHaveBeenCalled();
   });
+
+  it("ignora una verificacion pendiente despues del logout manual", async () => {
+    const { client, pin, inactivity, getConfig } = makeClient();
+    let resolveVerification: ((value: { data: { valid: boolean } }) => void) | undefined;
+    pin.verify.mockReturnValue(
+      new Promise<{ data: { valid: boolean } }>((resolve) => {
+        resolveVerification = resolve;
+      })
+    );
+    render(<InactivityPinLock client={client} {...baseProps} />);
+    getConfig()!.onWarning();
+
+    fireEvent.change(await screen.findByLabelText("PIN"), { target: { value: "5937" } });
+    fireEvent.click(screen.getByRole("button", { name: "Destrabar" }));
+    await waitFor(() => expect(pin.verify).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /^Cerrar/ }));
+    resolveVerification!({ data: { valid: true } });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    expect(inactivity.confirmActive).not.toHaveBeenCalled();
+    expect(inactivity.stop).toHaveBeenCalledTimes(1);
+  });
 });

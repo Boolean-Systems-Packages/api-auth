@@ -273,6 +273,7 @@ export function InactivityPinLock({
   }, [locked, pinAvailable, pinBlocked, sessionExpired, busy]);
 
   const logout = useCallback(() => {
+    verificationGeneration.current += 1;
     client.inactivity.stop();
     void Promise.resolve(callbackRefs.current.onLogout()).catch(() => undefined);
   }, [client]);
