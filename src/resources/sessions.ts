@@ -1,5 +1,6 @@
 import type { BooleanHttpClient, HttpResponse } from "@boolean-systems-packages/http";
 import type { Session, LoginPayload, RegisterPayload, RefreshTokenPayload, TokenPair } from "../types";
+import { normalizeTokenPair, type RawTokenPair } from "../token-pair";
 
 /**
  * Endpoints de sesión: login, register, logout, refresh.
@@ -48,8 +49,12 @@ export class SessionsResource {
    * Endpoint: POST /token/refresh/
    * Público (el refreshToken actúa como credencial).
    */
-  refresh(payload: RefreshTokenPayload): Promise<HttpResponse<TokenPair>> {
-    return this.http.post<TokenPair>("/token/refresh/", payload, { skipAuth: true });
+  async refresh(payload: RefreshTokenPayload): Promise<HttpResponse<TokenPair>> {
+    const response = await this.http.post<RawTokenPair>("/token/refresh/", payload, { skipAuth: true });
+    return {
+      ...response,
+      data: normalizeTokenPair(response.data),
+    };
   }
 
   /**

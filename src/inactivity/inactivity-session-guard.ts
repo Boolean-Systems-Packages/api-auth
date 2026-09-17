@@ -16,7 +16,7 @@ export interface InactivitySessionGuardConfig {
   warnAfterMs: number;
 
   /** Milisegundos de gracia después del aviso antes de cerrar la sesión. */
-  graceMs: number;
+  graceMs?: number | undefined;
 
   /** Se llama una vez, al cumplirse warnAfterMs sin actividad. */
   onWarning: () => void;
@@ -31,6 +31,9 @@ export interface InactivitySessionGuardConfig {
    * callback.
    */
   onSessionExpired: () => void;
+
+  /** Se ejecuta antes del logout remoto, con el mismo timeout acotado. */
+  beforeLogout?: (() => Promise<void>) | undefined;
 
   activityEvents?: readonly string[] | undefined;
   target?: EventTarget | undefined;
@@ -77,7 +80,6 @@ export class InactivitySessionGuard {
 
     this.watcher = new InactivityWatcher({
       warnAfterMs: config.warnAfterMs,
-      graceMs: config.graceMs,
       onWarning: config.onWarning,
       onTimeout: () => {
         // No se espera este logout indefinidamente: si la red está
@@ -93,16 +95,32 @@ export class InactivitySessionGuard {
         // momento. Por eso el intento de logout corre contra un timeout
         // propio: lo que pase primero dispara la notificación.
         const logoutTimeoutMs = config.logoutTimeoutMs ?? DEFAULT_LOGOUT_TIMEOUT_MS;
-        const bounded = Promise.race([
-          this.sessions.logout().catch(() => undefined),
-          new Promise<void>((resolve) => setTimeout(resolve, logoutTimeoutMs)),
-        ]);
-        void bounded.finally(() => {
+        const notifyExpired = () => {
           if (generation === this.generation) {
             config.onSessionExpired();
           }
-        });
+        };
+        const logout = () => {
+          if (generation !== this.generation) return;
+          const pendingLogout = this.runBounded(
+            () => this.sessions.logout(),
+            logoutTimeoutMs
+          );
+          void pendingLogout.then(notifyExpired).catch(() => undefined);
+        };
+
+        if (config.beforeLogout) {
+          const pendingBeforeLogout = this.runBounded(
+            config.beforeLogout,
+            logoutTimeoutMs
+          );
+          void pendingBeforeLogout.then(logout).catch(() => undefined);
+        } else {
+          // Mantener la llamada al logout síncrona cuando no hay hook previo.
+          logout();
+        }
       },
+      ...(config.graceMs !== undefined && { graceMs: config.graceMs }),
       ...(config.activityEvents !== undefined && { activityEvents: config.activityEvents }),
       ...(config.target !== undefined && { target: config.target }),
     });
@@ -123,5 +141,27 @@ export class InactivitySessionGuard {
    */
   confirmActive(): void {
     this.watcher?.confirmActive();
+  }
+
+  private runBounded(
+    operation: () => Promise<unknown>,
+    timeoutMs: number
+  ): Promise<void> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<void>((resolve) => {
+      timeoutId = setTimeout(resolve, timeoutMs);
+    });
+    let task: Promise<void>;
+    try {
+      task = Promise.resolve(operation())
+        .catch(() => undefined)
+        .then(() => undefined);
+    } catch {
+      task = Promise.resolve();
+    }
+
+    return Promise.race([task, timeout]).finally(() => {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+    });
   }
 }

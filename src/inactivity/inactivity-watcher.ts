@@ -27,7 +27,7 @@ export interface InactivityWatcherConfig {
    * Milisegundos de gracia después del aviso, antes de disparar `onTimeout`,
    * si el usuario no confirma con `confirmActive()`.
    */
-  graceMs: number;
+  graceMs?: number | undefined;
 
   /**
    * Se llama una vez, al cumplirse `warnAfterMs` sin actividad.
@@ -97,11 +97,11 @@ export class InactivityWatcher {
     ) {
       throw new Error(`warnAfterMs debe ser un número finito entre 1 y ${MAX_TIMEOUT_MS}`);
     }
-    if (
+    if (config.graceMs !== undefined && (
       !Number.isFinite(config.graceMs) ||
       config.graceMs <= 0 ||
       config.graceMs > MAX_TIMEOUT_MS
-    ) {
+    )) {
       throw new Error(`graceMs debe ser un número finito entre 1 y ${MAX_TIMEOUT_MS}`);
     }
 
@@ -162,13 +162,17 @@ export class InactivityWatcher {
       // este timer. Si lo arma después, un confirmActive() síncrono deja
       // vivo el timer de gracia del ciclo viejo y termina disparando un
       // logout igual, pese a la confirmación (feedback de Cacho en #6490).
-      this.armGraceTimer();
+      if (this.config.graceMs !== undefined) {
+        this.armGraceTimer();
+      }
       this.config.onWarning();
     }, this.config.warnAfterMs);
   }
 
   private armGraceTimer(): void {
     if (this.graceTimeoutId !== undefined) clearTimeout(this.graceTimeoutId);
+
+    if (this.config.graceMs === undefined) return;
 
     this.graceTimeoutId = setTimeout(() => {
       this.phaseValue = "expired";
