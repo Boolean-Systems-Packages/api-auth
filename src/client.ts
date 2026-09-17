@@ -4,7 +4,8 @@ import { MeResource } from "./resources/me";
 import { PasswordRecoveryResource } from "./resources/password-recovery";
 import { PinResource } from "./resources/pin";
 import { InactivitySessionGuard } from "./inactivity/inactivity-session-guard";
-import type { AuthClientConfig, DeviceContext, TokenPair } from "./types";
+import type { AuthClientConfig, DeviceContext } from "./types";
+import { normalizeTokenPair, type RawTokenPair } from "./token-pair";
 
 /**
  * Cliente del microservicio de autenticación Boolean.
@@ -75,6 +76,7 @@ export class AuthClient {
       getAuthHeader: config.getAuthHeader,
       timeout: config.timeout,
       defaultHeaders: deviceContextToHeaders(config.deviceContext),
+      unauthorizedStatuses: [401, 403],
 
       // Refresh automático: se llama una sola vez aunque múltiples
       // requests fallen con 401 simultáneamente (singleton en @boolean-systems-packages/http).
@@ -86,12 +88,12 @@ export class AuthClient {
               return false;
             }
             try {
-              const { data } = await this.http.post<TokenPair>(
+              const { data } = await this.http.post<RawTokenPair>(
                 "/token/refresh/",
                 { refreshToken },
                 { skipAuth: true }
               );
-              config.onTokensRefreshed?.(data);
+              config.onTokensRefreshed?.(normalizeTokenPair(data));
               return true; // reintenta el request original
             } catch {
               config.onAuthFailure?.();
