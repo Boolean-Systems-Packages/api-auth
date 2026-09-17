@@ -36,6 +36,19 @@ const baseProps = {
 };
 
 describe("InactivityPinLock", () => {
+  it("permite mostrar y ocultar el PIN", async () => {
+    const { client, getConfig } = makeClient();
+    render(<InactivityPinLock client={client} {...baseProps} />);
+    getConfig()!.onWarning();
+
+    const input = await screen.findByLabelText("PIN");
+    expect(input.getAttribute("type")).toBe("password");
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar PIN" }));
+    expect(input.getAttribute("type")).toBe("text");
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar PIN" }));
+    expect(input.getAttribute("type")).toBe("password");
+  });
+
   it("muestra un overlay opaco, atrapa el foco y vuelve inerte la aplicacion", async () => {
     const { client, getConfig } = makeClient();
     render(
@@ -64,7 +77,7 @@ describe("InactivityPinLock", () => {
     expect(input).toBeTruthy();
   });
 
-  it("muestra intentos restantes y destraba con PIN valido", async () => {
+  it("muestra intentos restantes y confirma con PIN valido", async () => {
     const { client, pin, inactivity, getConfig } = makeClient();
     pin.verify
       .mockResolvedValueOnce({ data: { valid: false, remainingAttempts: 3 } })
@@ -74,11 +87,11 @@ describe("InactivityPinLock", () => {
 
     const input = await screen.findByLabelText("PIN");
     fireEvent.change(input, { target: { value: "1111" } });
-    fireEvent.click(screen.getByRole("button", { name: "Destrabar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar PIN" }));
     expect((await screen.findByRole("alert")).textContent).toContain("3");
 
     fireEvent.change(input, { target: { value: "5937" } });
-    fireEvent.click(screen.getByRole("button", { name: "Destrabar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar PIN" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(inactivity.confirmActive).toHaveBeenCalledTimes(1);
   });
@@ -96,7 +109,7 @@ describe("InactivityPinLock", () => {
     getConfig()!.onWarning();
 
     fireEvent.change(await screen.findByLabelText("PIN"), { target: { value: "5937" } });
-    fireEvent.click(screen.getByRole("button", { name: "Destrabar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar PIN" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain("bloqueado");
     expect(screen.queryByLabelText("PIN")).toBeNull();
@@ -120,7 +133,7 @@ describe("InactivityPinLock", () => {
     getConfig()!.onWarning();
 
     fireEvent.change(await screen.findByLabelText("PIN"), { target: { value: "5937" } });
-    fireEvent.click(screen.getByRole("button", { name: "Destrabar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar PIN" }));
 
     expect(await screen.findByText("La sesión venció. Cerrá sesión para volver a ingresar.")).toBeTruthy();
     expect(screen.queryByLabelText("PIN")).toBeNull();
@@ -155,7 +168,7 @@ describe("InactivityPinLock", () => {
     getConfig()!.onWarning();
 
     fireEvent.change(await screen.findByLabelText("PIN"), { target: { value: "5937" } });
-    fireEvent.click(screen.getByRole("button", { name: "Destrabar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar PIN" }));
     await waitFor(() => expect(pin.verify).toHaveBeenCalledTimes(1));
 
     getConfig()!.onSessionExpired();
@@ -179,7 +192,7 @@ describe("InactivityPinLock", () => {
     getConfig()!.onWarning();
 
     fireEvent.change(await screen.findByLabelText("PIN"), { target: { value: "5937" } });
-    fireEvent.click(screen.getByRole("button", { name: "Destrabar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar PIN" }));
     await waitFor(() => expect(pin.verify).toHaveBeenCalledTimes(1));
 
     view.rerender(
@@ -203,7 +216,7 @@ describe("InactivityPinLock", () => {
     getConfig()!.onWarning();
 
     fireEvent.change(await screen.findByLabelText("PIN"), { target: { value: "5937" } });
-    fireEvent.click(screen.getByRole("button", { name: "Destrabar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar PIN" }));
     await waitFor(() => expect(pin.verify).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByRole("button", { name: /^Cerrar/ }));

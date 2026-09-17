@@ -31,6 +31,29 @@ function fillForm() {
 }
 
 describe("PinSetupDialog", () => {
+  it("permite mostrar y ocultar contraseña, PIN y confirmación", () => {
+    const { client } = makeClient();
+    render(<PinSetupDialog client={client} />);
+
+    const password = screen.getByLabelText("Contraseña actual");
+    const pin = screen.getByLabelText("PIN de 4 a 6 dígitos");
+    const confirmation = screen.getByLabelText("Repetir PIN");
+    expect(password.getAttribute("type")).toBe("password");
+    expect(pin.getAttribute("type")).toBe("password");
+    expect(confirmation.getAttribute("type")).toBe("password");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar Contraseña actual" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar PIN de 4 a 6 dígitos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar Repetir PIN" }));
+
+    expect(password.getAttribute("type")).toBe("text");
+    expect(pin.getAttribute("type")).toBe("text");
+    expect(confirmation.getAttribute("type")).toBe("text");
+
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar Contraseña actual" }));
+    expect(password.getAttribute("type")).toBe("password");
+  });
+
   it("crea o cambia el PIN con contraseña, PIN y confirmacion", async () => {
     const { client, pin } = makeClient();
     const onDone = vi.fn();

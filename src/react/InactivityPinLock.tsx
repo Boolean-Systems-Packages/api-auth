@@ -21,6 +21,8 @@ export interface InactivityPinLockLabels {
   throttled: string;
   sessionExpired: string;
   verificationError: string;
+  showPin?: string;
+  hidePin?: string;
 }
 
 export interface InactivityPinLockProps {
@@ -39,9 +41,9 @@ export interface InactivityPinLockProps {
 
 const DEFAULT_LABELS: InactivityPinLockLabels = {
   title: "Pantalla bloqueada",
-  userPrompt: "Ingresá tu PIN para continuar",
+  userPrompt: "Ingresá tu PIN para desbloquear la pantalla y continuar trabajando.",
   pinLabel: "PIN",
-  unlock: "Destrabar",
+  unlock: "Confirmar PIN",
   logout: "Cerrar sesión",
   noPin: "Este usuario no tiene un PIN configurado.",
   invalidPin: (remainingAttempts) =>
@@ -55,6 +57,8 @@ const DEFAULT_LABELS: InactivityPinLockLabels = {
   throttled: "Demasiados intentos. Esperá un momento y probá de nuevo.",
   sessionExpired: "La sesión venció. Cerrá sesión para volver a ingresar.",
   verificationError: "No se pudo verificar el PIN. Probá nuevamente.",
+  showPin: "Mostrar PIN",
+  hidePin: "Ocultar PIN",
 };
 
 const overlayStyle: CSSProperties = {
@@ -75,6 +79,43 @@ const cardStyle: CSSProperties = {
   background: "#1f2937",
   padding: "32px",
   boxShadow: "0 24px 80px rgb(0 0 0 / 45%)",
+  textAlign: "left",
+};
+
+const titleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "24px",
+  lineHeight: 1.25,
+};
+
+const userLabelStyle: CSSProperties = {
+  margin: "10px 0 0",
+  color: "#cbd5e1",
+  fontSize: "14px",
+  overflowWrap: "anywhere",
+};
+
+const formStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "16px",
+  marginTop: "24px",
+};
+
+const promptStyle: CSSProperties = {
+  margin: 0,
+  color: "#cbd5e1",
+  fontSize: "14px",
+  lineHeight: 1.5,
+  textAlign: "left",
+};
+
+const fieldLabelStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px",
+  fontSize: "14px",
+  fontWeight: 600,
 };
 
 const inputStyle: CSSProperties = {
@@ -86,7 +127,32 @@ const inputStyle: CSSProperties = {
   color: "#111827",
   fontSize: "20px",
   letterSpacing: "0.3em",
+  minHeight: "48px",
   padding: "10px 12px",
+  textAlign: "left",
+  paddingRight: "52px",
+};
+
+const inputWrapperStyle: CSSProperties = {
+  position: "relative",
+};
+
+const visibilityButtonStyle: CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  right: "8px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "36px",
+  height: "36px",
+  transform: "translateY(-50%)",
+  border: 0,
+  borderRadius: "6px",
+  background: "transparent",
+  color: "#334155",
+  cursor: "pointer",
+  padding: 0,
 };
 
 const primaryButtonStyle: CSSProperties = {
@@ -95,7 +161,11 @@ const primaryButtonStyle: CSSProperties = {
   background: "#2563eb",
   color: "#fff",
   cursor: "pointer",
+  width: "100%",
+  minHeight: "44px",
   padding: "10px 16px",
+  fontSize: "15px",
+  fontWeight: 600,
 };
 
 const secondaryButtonStyle: CSSProperties = {
@@ -104,7 +174,12 @@ const secondaryButtonStyle: CSSProperties = {
   background: "transparent",
   color: "#f9fafb",
   cursor: "pointer",
+  width: "100%",
+  minHeight: "44px",
+  marginTop: "12px",
   padding: "10px 16px",
+  fontSize: "15px",
+  fontWeight: 600,
 };
 
 export function InactivityPinLock({
@@ -127,6 +202,7 @@ export function InactivityPinLock({
   const [pin, setPin] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -146,6 +222,7 @@ export function InactivityPinLock({
     setPinBlocked(false);
     setMessage(null);
     setBusy(false);
+    setShowPin(false);
     setSessionExpired(false);
   }, [identityKey]);
 
@@ -174,6 +251,7 @@ export function InactivityPinLock({
         setMessage(null);
         setPin("");
         setPinBlocked(false);
+        setShowPin(false);
         setLocked(true);
       },
       ...(graceMs !== undefined && onBeforeClose
@@ -289,6 +367,7 @@ export function InactivityPinLock({
       const result = response.data;
       if (result.valid) {
         setPin("");
+        setShowPin(false);
         setMessage(null);
         setLocked(false);
         client.inactivity.confirmActive();
@@ -326,34 +405,43 @@ export function InactivityPinLock({
             aria-labelledby="api-auth-pin-lock-title"
             style={cardStyle}
           >
-            <h1 id="api-auth-pin-lock-title" style={{ marginTop: 0 }}>
+            <h1 id="api-auth-pin-lock-title" style={titleStyle}>
               {mergedLabels.title}
             </h1>
-            {userLabel ? <p>{userLabel}</p> : null}
+            {userLabel ? <p style={userLabelStyle}>{userLabel}</p> : null}
             {sessionExpired ? (
               <p role="alert">{mergedLabels.sessionExpired}</p>
             ) : pinAvailable && !pinBlocked ? (
               <form
+                style={formStyle}
                 onSubmit={(event) => {
                   event.preventDefault();
                   void verifyPin();
                 }}
               >
-                <p>{mergedLabels.userPrompt}</p>
-                <label>
+                <p style={promptStyle}>{mergedLabels.userPrompt}</p>
+                <label style={fieldLabelStyle}>
                   {mergedLabels.pinLabel}
-                  <input
-                    value={pin}
-                    onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                    inputMode="numeric"
-                    type="password"
-                    autoComplete="off"
-                    maxLength={6}
-                    pattern="[0-9]{4,6}"
-                    required
-                    style={inputStyle}
-                    aria-describedby={message ? "api-auth-pin-lock-message" : undefined}
-                  />
+                  <div style={inputWrapperStyle}>
+                    <input
+                      value={pin}
+                      onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                      inputMode="numeric"
+                      type={showPin ? "text" : "password"}
+                      autoComplete="off"
+                      maxLength={6}
+                      pattern="[0-9]{4,6}"
+                      required
+                      style={inputStyle}
+                      aria-describedby={message ? "api-auth-pin-lock-message" : undefined}
+                    />
+                    <VisibilityToggle
+                      visible={showPin}
+                      onClick={() => setShowPin((current) => !current)}
+                      showLabel={mergedLabels.showPin ?? "Mostrar PIN"}
+                      hideLabel={mergedLabels.hidePin ?? "Ocultar PIN"}
+                    />
+                  </div>
                 </label>
                 {message ? (
                   <p id="api-auth-pin-lock-message" role="alert">
@@ -383,6 +471,44 @@ export function InactivityPinLock({
       {children}
       {portal}
     </>
+  );
+}
+
+function VisibilityToggle({
+  visible,
+  onClick,
+  showLabel,
+  hideLabel,
+}: {
+  visible: boolean;
+  onClick: () => void;
+  showLabel: string;
+  hideLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      style={visibilityButtonStyle}
+      onClick={onClick}
+      aria-label={visible ? hideLabel : showLabel}
+      title={visible ? hideLabel : showLabel}
+      aria-pressed={visible}
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        {visible ? (
+          <>
+            <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c5.2 0 8.6 5.2 9.5 7-.3.6-.9 1.6-1.8 2.7M6.2 6.2C3.8 7.8 2.7 10.4 2.5 12c.9 1.8 4.3 7 9.5 7 1.2 0 2.3-.3 3.3-.7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        ) : (
+          <>
+            <path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+            <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="2" />
+          </>
+        )}
+      </svg>
+    </button>
   );
 }
 
