@@ -168,6 +168,114 @@ describe("InactivitySessionGuard", () => {
     expect(() => guard.stop()).not.toThrow();
   });
 
+  it("ejecuta beforeLogout antes del logout remoto", async () => {
+    const sessions = makeSessionsMock();
+    const order: string[] = [];
+    sessions.logout = vi.fn(async () => {
+      order.push("logout");
+      return {
+        data: null,
+        pagination: null,
+        errors: [],
+        meta: { message: "ok" },
+        status: 204,
+        headers: new Headers(),
+        url: "",
+      };
+    });
+    const guard = new InactivitySessionGuard(sessions);
+
+    guard.start({
+      warnAfterMs: 1000,
+      graceMs: 500,
+      onExpirationStarted: () => order.push("expiring"),
+      beforeLogout: async () => {
+        order.push("beforeLogout");
+      },
+      onWarning: vi.fn(),
+      onSessionExpired: () => order.push("expired"),
+      target: undefined,
+    });
+
+    vi.advanceTimersByTime(1500);
+    await vi.waitFor(() =>
+      expect(order).toEqual(["expiring", "beforeLogout", "logout", "expired"])
+    );
+  });
+
+  it("continua con logout y notificacion si beforeLogout se cuelga", async () => {
+    const sessions = makeSessionsMock();
+    const beforeLogout = vi.fn(() => new Promise<void>(() => {}));
+    const onSessionExpired = vi.fn();
+    const guard = new InactivitySessionGuard(sessions);
+
+    guard.start({
+      warnAfterMs: 1000,
+      graceMs: 500,
+      beforeLogout,
+      onWarning: vi.fn(),
+      onSessionExpired,
+      logoutTimeoutMs: 2000,
+      target: undefined,
+    });
+
+    vi.advanceTimersByTime(1500);
+    expect(beforeLogout).toHaveBeenCalledTimes(1);
+    expect(sessions.logout).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(2000);
+    await vi.waitFor(() => expect(sessions.logout).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(onSessionExpired).toHaveBeenCalledTimes(1));
+  });
+
+  it("sin graceMs mantiene el warning sin ejecutar cierre", () => {
+    const sessions = makeSessionsMock();
+    const guard = new InactivitySessionGuard(sessions);
+    const onSessionExpired = vi.fn();
+
+    guard.start({
+      warnAfterMs: 1000,
+      onWarning: vi.fn(),
+      onSessionExpired,
+      target: undefined,
+    });
+
+    vi.advanceTimersByTime(61_000);
+    expect(guard.phase).toBe("warning");
+    expect(sessions.logout).not.toHaveBeenCalled();
+    expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+
+  it("no inicia el logout viejo si cambia el ciclo mientras beforeLogout esta pendiente", async () => {
+    const sessions = makeSessionsMock();
+    const beforeLogout = vi.fn(() => new Promise<void>(() => {}));
+    const guard = new InactivitySessionGuard(sessions);
+    const onSessionExpired = vi.fn();
+
+    guard.start({
+      warnAfterMs: 1000,
+      graceMs: 500,
+      beforeLogout,
+      onWarning: vi.fn(),
+      onSessionExpired,
+      logoutTimeoutMs: 1000,
+      target: undefined,
+    });
+    vi.advanceTimersByTime(1500);
+
+    guard.start({
+      warnAfterMs: 60_000,
+      onWarning: vi.fn(),
+      onSessionExpired: vi.fn(),
+      target: undefined,
+    });
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+
+    expect(sessions.logout).not.toHaveBeenCalled();
+    expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+
   describe("timeout acotado del logout remoto (feedback Martín #6490)", () => {
     it("notifica onSessionExpired igual si sessions.logout() nunca resuelve ni rechaza (request colgada)", async () => {
       const hangingLogout = vi.fn(() => new Promise(() => {})); // nunca se asienta

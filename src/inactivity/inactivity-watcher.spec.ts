@@ -131,6 +131,28 @@ describe("InactivityWatcher", () => {
     expect(watcher.phase).toBe("idle-tracking");
   });
 
+  it("sin graceMs mantiene el warning hasta que el consumidor confirme actividad", () => {
+    const onWarning = vi.fn();
+    const onTimeout = vi.fn();
+    const watcher = new InactivityWatcher({
+      warnAfterMs: 1000,
+      onWarning,
+      onTimeout,
+      target: undefined,
+    });
+
+    watcher.start();
+    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(60_000);
+
+    expect(onWarning).toHaveBeenCalledTimes(1);
+    expect(onTimeout).not.toHaveBeenCalled();
+    expect(watcher.phase).toBe("warning");
+
+    watcher.confirmActive();
+    expect(watcher.phase).toBe("idle-tracking");
+  });
+
   it("dispara onTimeout una sola vez tras graceMs sin confirmación, y se detiene", () => {
     const { watcher, onTimeout } = makeWatcher();
     watcher.start();
