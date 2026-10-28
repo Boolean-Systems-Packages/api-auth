@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { AuthClient } from "../client";
 
@@ -204,6 +204,20 @@ export function PinSetupDialog({
   const [showConfirmation, setShowConfirmation] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
 
+  const resetSecrets = useCallback(() => {
+    setCurrentPassword("");
+    setPin("");
+    setConfirmation("");
+    setError(null);
+    setShowPassword(false);
+    setShowPin(false);
+    setShowConfirmation(false);
+  }, []);
+
+  useEffect(() => {
+    if (!open) resetSecrets();
+  }, [open, resetSecrets]);
+
   useEffect(() => {
     if (!open) return;
     const dialog = dialogRef.current;
@@ -349,7 +363,14 @@ export function PinSetupDialog({
               {busy ? "..." : mergedLabels.save}
             </button>
             {onCancel ? (
-              <button type="button" onClick={onCancel} style={secondaryButtonStyle}>
+              <button
+                type="button"
+                onClick={() => {
+                  resetSecrets();
+                  onCancel();
+                }}
+                style={secondaryButtonStyle}
+              >
                 {mergedLabels.cancel}
               </button>
             ) : null}

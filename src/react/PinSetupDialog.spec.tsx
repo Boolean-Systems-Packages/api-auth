@@ -54,6 +54,52 @@ describe("PinSetupDialog", () => {
     expect(password.getAttribute("type")).toBe("password");
   });
 
+  it("limpia los secretos al cancelar y al reabrir el dialogo controlado", () => {
+    const { client } = makeClient();
+    const onCancel = vi.fn();
+    const view = render(
+      <PinSetupDialog client={client} open onCancel={onCancel} />
+    );
+
+    fillForm();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar Contraseña actual" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar PIN de 4 a 6 dígitos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar Repetir PIN" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    view.rerender(<PinSetupDialog client={client} open={false} onCancel={onCancel} />);
+    view.rerender(<PinSetupDialog client={client} open onCancel={onCancel} />);
+
+    expect((screen.getByLabelText("Contraseña actual") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("PIN de 4 a 6 dígitos") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Repetir PIN") as HTMLInputElement).value).toBe("");
+    expect(screen.getByLabelText("Contraseña actual").getAttribute("type")).toBe("password");
+    expect(screen.getByLabelText("PIN de 4 a 6 dígitos").getAttribute("type")).toBe("password");
+    expect(screen.getByLabelText("Repetir PIN").getAttribute("type")).toBe("password");
+  });
+
+  it("limpia los secretos si el host cierra el dialogo sin cancelar", async () => {
+    const { client } = makeClient();
+    const view = render(<PinSetupDialog client={client} open />);
+
+    fillForm();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar Contraseña actual" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar PIN de 4 a 6 dígitos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar Repetir PIN" }));
+
+    view.rerender(<PinSetupDialog client={client} open={false} />);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    view.rerender(<PinSetupDialog client={client} open />);
+
+    expect((screen.getByLabelText("Contraseña actual") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("PIN de 4 a 6 dígitos") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Repetir PIN") as HTMLInputElement).value).toBe("");
+    expect(screen.getByLabelText("Contraseña actual").getAttribute("type")).toBe("password");
+    expect(screen.getByLabelText("PIN de 4 a 6 dígitos").getAttribute("type")).toBe("password");
+    expect(screen.getByLabelText("Repetir PIN").getAttribute("type")).toBe("password");
+  });
+
   it("crea o cambia el PIN con contraseña, PIN y confirmacion", async () => {
     const { client, pin } = makeClient();
     const onDone = vi.fn();
