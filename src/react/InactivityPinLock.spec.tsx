@@ -41,10 +41,13 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function makeClientWithRealGuard(beforeLogout: () => Promise<void>) {
+function makeClientWithRealGuard(onLogoutStarted: () => void = () => undefined) {
   const pendingLogout = deferred<unknown>();
   const sessions = {
-    logout: vi.fn(() => pendingLogout.promise),
+    logout: vi.fn(() => {
+      onLogoutStarted();
+      return pendingLogout.promise;
+    }),
   } as unknown as SessionsResource;
   const inactivity = new InactivitySessionGuard(sessions);
   const pendingPin = deferred<{ data: { valid: boolean } }>();
@@ -264,7 +267,7 @@ describe("InactivityPinLock", () => {
         ? () => pendingBeforeLogout.promise
         : () => Promise.resolve();
       const { client, inactivity, pendingLogout, pendingPin, sessions } =
-        makeClientWithRealGuard(beforeLogout);
+        makeClientWithRealGuard();
       render(
         <InactivityPinLock
           client={client}
@@ -306,4 +309,44 @@ describe("InactivityPinLock", () => {
       pendingLogout.resolve({});
     }
   );
+
+  it("registra beforeLogout si se agrega despues del montaje", async () => {
+    vi.useFakeTimers();
+    const order: string[] = [];
+    const beforeLogout = vi.fn(async () => {
+      order.push("beforeLogout");
+    });
+    const { client, pendingLogout } = makeClientWithRealGuard(() => order.push("logout"));
+    const view = render(
+      <InactivityPinLock
+        client={client}
+        {...baseProps}
+        lockAfterMs={100}
+        closeAfterMs={100}
+      />
+    );
+
+    view.rerender(
+      <InactivityPinLock
+        client={client}
+        {...baseProps}
+        lockAfterMs={100}
+        closeAfterMs={100}
+        onBeforeClose={beforeLogout}
+      />
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    pendingLogout.resolve({});
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(beforeLogout).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(["beforeLogout", "logout"]);
+  });
 });

@@ -259,7 +259,7 @@ export function InactivityPinLock({
         setSessionExpired(true);
         setLocked(true);
       },
-      ...(graceMs !== undefined && onBeforeClose
+      ...(graceMs !== undefined
         ? {
             beforeLogout: () =>
               callbackRefs.current.onBeforeClose?.() ?? Promise.resolve(),
