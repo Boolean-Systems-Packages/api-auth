@@ -1,13 +1,18 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AuthClient } from "../client";
-import type { InactivitySessionGuardConfig } from "../inactivity/inactivity-session-guard";
+import {
+  InactivitySessionGuard,
+  type InactivitySessionGuardConfig,
+} from "../inactivity/inactivity-session-guard";
+import type { SessionsResource } from "../resources/sessions";
 import { InactivityPinLock } from "./InactivityPinLock";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -26,6 +31,29 @@ function makeClient() {
   };
   const client = { inactivity, pin } as unknown as AuthClient;
   return { client, inactivity, pin, getConfig: () => config };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function makeClientWithRealGuard(beforeLogout: () => Promise<void>) {
+  const pendingLogout = deferred<unknown>();
+  const sessions = {
+    logout: vi.fn(() => pendingLogout.promise),
+  } as unknown as SessionsResource;
+  const inactivity = new InactivitySessionGuard(sessions);
+  const pendingPin = deferred<{ data: { valid: boolean } }>();
+  const pin = {
+    verify: vi.fn(() => pendingPin.promise),
+    set: vi.fn(),
+  };
+  const client = { inactivity, pin } as unknown as AuthClient;
+  return { client, inactivity, pendingLogout, pendingPin, sessions };
 }
 
 const baseProps = {
@@ -226,4 +254,56 @@ describe("InactivityPinLock", () => {
     expect(inactivity.confirmActive).not.toHaveBeenCalled();
     expect(inactivity.stop).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["beforeLogout", "logout"] as const)(
+    "mantiene bloqueada la pantalla si el PIN responde válido tarde durante %s",
+    async (pendingCallback) => {
+      vi.useFakeTimers();
+      const pendingBeforeLogout = deferred<void>();
+      const beforeLogout = pendingCallback === "beforeLogout"
+        ? () => pendingBeforeLogout.promise
+        : () => Promise.resolve();
+      const { client, inactivity, pendingLogout, pendingPin, sessions } =
+        makeClientWithRealGuard(beforeLogout);
+      render(
+        <InactivityPinLock
+          client={client}
+          {...baseProps}
+          lockAfterMs={100}
+          closeAfterMs={100}
+          onBeforeClose={beforeLogout}
+        />
+      );
+
+      await vi.advanceTimersByTimeAsync(100);
+      expect(screen.getByRole("dialog")).toBeTruthy();
+      fireEvent.change(screen.getByLabelText("PIN"), { target: { value: "5937" } });
+      fireEvent.click(screen.getByRole("button", { name: "Confirmar PIN" }));
+      expect(client.pin.verify).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(100);
+      expect(inactivity.phase).toBe("expired");
+      if (pendingCallback === "logout") {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(sessions.logout).toHaveBeenCalledTimes(1);
+      } else {
+        expect(sessions.logout).not.toHaveBeenCalled();
+      }
+
+      await act(async () => {
+        pendingPin.resolve({ data: { valid: true } });
+        await pendingPin.promise;
+      });
+
+      expect(screen.queryByRole("dialog")).toBeTruthy();
+      expect(screen.queryByLabelText("PIN")).toBeNull();
+      expect(screen.getByRole("alert").textContent).toContain("sesión venció");
+      expect(inactivity.phase).toBe("expired");
+
+      pendingBeforeLogout.resolve();
+      pendingLogout.resolve({});
+    }
+  );
 });

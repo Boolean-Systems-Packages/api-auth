@@ -21,6 +21,9 @@ export interface InactivitySessionGuardConfig {
   /** Se llama una vez, al cumplirse warnAfterMs sin actividad. */
   onWarning: () => void;
 
+  /** Se llama al vencer la gracia, antes de esperar beforeLogout o logout. */
+  onExpirationStarted?: (() => void) | undefined;
+
   /**
    * Se llama una sola vez, DESPUÉS de que se intentó cerrar la sesión de
    * sistema (auth.sessions.logout()) por falta de respuesta al aviso.
@@ -82,6 +85,8 @@ export class InactivitySessionGuard {
       warnAfterMs: config.warnAfterMs,
       onWarning: config.onWarning,
       onTimeout: () => {
+        config.onExpirationStarted?.();
+
         // No se espera este logout indefinidamente: si la red está
         // caída, o si la request queda directamente colgada (sin
         // rechazar, sin resolver -- conexión estancada), igual queremos

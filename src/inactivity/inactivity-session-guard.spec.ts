@@ -188,6 +188,7 @@ describe("InactivitySessionGuard", () => {
     guard.start({
       warnAfterMs: 1000,
       graceMs: 500,
+      onExpirationStarted: () => order.push("expiring"),
       beforeLogout: async () => {
         order.push("beforeLogout");
       },
@@ -197,7 +198,9 @@ describe("InactivitySessionGuard", () => {
     });
 
     vi.advanceTimersByTime(1500);
-    await vi.waitFor(() => expect(order).toEqual(["beforeLogout", "logout", "expired"]));
+    await vi.waitFor(() =>
+      expect(order).toEqual(["expiring", "beforeLogout", "logout", "expired"])
+    );
   });
 
   it("continua con logout y notificacion si beforeLogout se cuelga", async () => {

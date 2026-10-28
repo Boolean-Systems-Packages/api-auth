@@ -254,6 +254,11 @@ export function InactivityPinLock({
         setShowPin(false);
         setLocked(true);
       },
+      onExpirationStarted: () => {
+        verificationGeneration.current += 1;
+        setSessionExpired(true);
+        setLocked(true);
+      },
       ...(graceMs !== undefined && onBeforeClose
         ? {
             beforeLogout: () =>
